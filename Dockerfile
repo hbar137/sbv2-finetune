@@ -12,9 +12,14 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 # OS deps. ffmpeg for resample, openssh-server so RunPod web SSH works,
 # tmux/curl/unzip for the in-pod workflow, git for the SBV2 clone.
+# pkg-config + libav* headers are required by PyAV which faster-whisper
+# (pinned by SBV2 to 0.10.1) builds from sdist.
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ffmpeg git curl ca-certificates unzip zip tmux \
         openssh-server build-essential \
+        pkg-config \
+        libavformat-dev libavcodec-dev libavdevice-dev \
+        libavutil-dev libswscale-dev libswresample-dev libavfilter-dev \
     && rm -rf /var/lib/apt/lists/* \
     && mkdir -p /run/sshd
 
