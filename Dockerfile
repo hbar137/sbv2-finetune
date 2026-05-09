@@ -48,7 +48,8 @@ WORKDIR /opt/Style-Bert-VITS2
 # upstream's colab notebook takes.
 RUN pip install --no-cache-dir uv \
     && sed -i '/^torch/d; /^torchaudio/d; /^faster-whisper/d; /^stable_ts/d' requirements.txt \
-    && uv pip install --system --no-cache -r requirements.txt
+    && uv pip install --system --no-cache -r requirements.txt \
+    && uv pip install --system --no-cache "transformers==4.44.2"
 
 # Pre-download base weights so training starts immediately. --skip_default_models
 # skips the demo voice models (~3 GB) we don't need for fine-tuning.

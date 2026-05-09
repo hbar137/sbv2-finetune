@@ -105,6 +105,11 @@ def preprocess(model_name: str, batch_size: int, epochs: int, save_every_steps: 
 def train(model_name: str, use_jp_extra: bool, assets_root: Path) -> None:
     dataset_path = SBV2_ROOT / "Data" / model_name
     config_path = dataset_path / "config.json"
+    train_list = dataset_path / "train.list"
+    if not train_list.exists() or train_list.stat().st_size == 0:
+        sys.exit(f"[run_finetune] preprocess produced no train.list at {train_list} — "
+                 "check earlier log for the actual subprocess error (SBV2's "
+                 "preprocess_all logs subprocess failures but does not raise).")
     script = "train_ms_jp_extra.py" if use_jp_extra else "train_ms.py"
     run([
         "python", script,
@@ -115,21 +120,39 @@ def train(model_name: str, use_jp_extra: bool, assets_root: Path) -> None:
 
 
 def collect_outputs(model_name: str, assets_root: Path, output_dir: Path) -> Path:
-    """Copy trained model + config to OUTPUT_DIR, then tar it for easy transfer."""
+    """Copy trained model + config to OUTPUT_DIR, then tar it for easy transfer.
+
+    SBV2 writes two parallel sets of checkpoints during training:
+      Data/<model>/models/{G,D,WD}_<step>.pth  — generator + discriminators with
+        optimizer state (needed to resume training; SBV2 rotates older ones out
+        so only the latest set survives at end-of-run).
+      model_assets/<model>/<model>_e<ep>_s<step>.safetensors  — generator-only
+        weights for every save_every_steps (needed for inference; all kept).
+
+    We bundle both: the .safetensors give you a menu of inference checkpoints
+    to A/B between, the .pth lets you resume training from where this run
+    stopped if you want to extend epochs.
+    """
     dataset_path = SBV2_ROOT / "Data" / model_name
+    models_dir = dataset_path / "models"
     out = output_dir / model_name
     out.mkdir(parents=True, exist_ok=True)
 
-    # Latest checkpoints from Data/<model>/models/ — take everything,
-    # tarball is small enough.
-    for src in (dataset_path / "models").glob("*.safetensors"):
+    # Resume-training state: latest G/D/WD .pth (with optimizer) — SBV2 keeps
+    # only the most recent set, so this is just the final checkpoint pair.
+    for src in models_dir.glob("*.pth"):
         shutil.copy2(src, out / src.name)
+    # Belt-and-suspenders for any .safetensors that happen to live here too
+    # (older SBV2 versions, or future variants).
+    for src in models_dir.glob("*.safetensors"):
+        shutil.copy2(src, out / src.name)
+
     for fname in ("config.json", "esd.list", "style_vectors.npy", "train.list", "val.list"):
         src = dataset_path / fname
         if src.exists():
             shutil.copy2(src, out / fname)
 
-    # Also copy the assets_root export the Gradio webui produces if present.
+    # Per-epoch generator safetensors for inference (one per SAVE_EVERY_STEPS).
     assets_export = assets_root / model_name
     if assets_export.exists():
         for f in assets_export.iterdir():
