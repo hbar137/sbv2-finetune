@@ -37,7 +37,11 @@ WORKDIR /opt/Style-Bert-VITS2
 
 # torch / torchaudio already in base image; install the rest. SBV2 pins
 # torch<2.4 in requirements, so don't reinstall torch — just everything else.
-RUN sed -i '/^torch/d; /^torchaudio/d' requirements.txt \
+# faster-whisper / stable_ts are only used by transcribe.py (slice + auto-
+# transcribe pipeline). We don't run that — our transcripts come from the
+# irodori-tts dataset UI — and faster-whisper's pinned PyAV 10.0.0 sdist
+# fails to compile against modern Cython, so drop both.
+RUN sed -i '/^torch/d; /^torchaudio/d; /^faster-whisper/d; /^stable_ts/d' requirements.txt \
     && pip install -r requirements.txt
 
 # Pre-download base weights so training starts immediately. --skip_default_models
