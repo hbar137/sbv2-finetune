@@ -41,8 +41,14 @@ WORKDIR /opt/Style-Bert-VITS2
 # transcribe pipeline). We don't run that — our transcripts come from the
 # irodori-tts dataset UI — and faster-whisper's pinned PyAV 10.0.0 sdist
 # fails to compile against modern Cython, so drop both.
-RUN sed -i '/^torch/d; /^torchaudio/d; /^faster-whisper/d; /^stable_ts/d' requirements.txt \
-    && pip install -r requirements.txt
+#
+# Install via `uv pip` instead of plain pip: SBV2's requirements (numpy<2 +
+# unbounded transformers / onnxruntime-gpu / tensorboard) blow up pip's
+# resolver into ResolutionTooDeep. uv resolves cleanly. Same approach
+# upstream's colab notebook takes.
+RUN pip install --no-cache-dir uv \
+    && sed -i '/^torch/d; /^torchaudio/d; /^faster-whisper/d; /^stable_ts/d' requirements.txt \
+    && uv pip install --system --no-cache -r requirements.txt
 
 # Pre-download base weights so training starts immediately. --skip_default_models
 # skips the demo voice models (~3 GB) we don't need for fine-tuning.
